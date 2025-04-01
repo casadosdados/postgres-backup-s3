@@ -7,7 +7,7 @@ source ./env.sh
 
 echo "Creating backup of $POSTGRES_DATABASE database..."
 pg_dump --format=custom \
-        -h $POSTGRES_DSN \
+        $POSTGRES_DSN \
         > db.dump
 
 timestamp=$(date +"%Y-%m-%dT%H:%M:%S")
