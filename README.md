@@ -22,10 +22,65 @@ services:
       S3_SECRET_ACCESS_KEY: secret
       S3_BUCKET: my-bucket
       S3_PREFIX: backup
-      POSTGRES_HOST: postgres
-      POSTGRES_DATABASE: dbname
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DSN: postgresql://my_user:my_pass@hostname:5432/database_name?sslmode=verify-ca&sslrootcert=/postgres-ssl/root.crt&sslcert=/postgres-ssl/client.crt&sslkey=/postgres-ssl/client.key
+```
+Example K8s Cronjob
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-postgres
+spec:
+  schedule: "0 03 * * *"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 172800
+      template:
+        spec:
+          containers:
+            - name: backup-postgres
+              imagePullPolicy: IfNotPresent
+              image: jhonatamenezes/postgres-backup-s3:17.4.6
+              command:
+                - /bin/sh
+                - -c
+                - "sleep 3; chmod +rx run.sh && ./run.sh"
+              env:
+                - name: BACKUP_KEEP_DAYS
+                  value: "30"
+                - name: S3_ENDPOINT
+                  value: https://endpoint.com
+                - name: S3_REGION
+                  value: region1
+                - name: S3_ACCESS_KEY_ID
+                  value: access_key
+                - name: S3_SECRET_ACCESS_KEY
+                  value: secret_key
+                - name: S3_BUCKET
+                  value: my_bucket
+                - name: S3_PREFIX
+                  value: example-prefix
+                - name: POSTGRES_DATABASE
+                  value: example-database
+                - name: POSTGRES_DSN
+                  value: postgresql://my_user:my_pass@hostname:5432/database_name?sslmode=verify-ca&sslrootcert=/postgres-ssl/root.crt&sslcert=/postgres-ssl/client.crt&sslkey=/postgres-ssl/client.key
+              volumeMounts:
+                - name: postgres-ssl-client
+                  mountPath: "/postgres-ssl-client"
+                  readOnly: true
+              lifecycle:
+                postStart:
+                  exec:
+                    command:
+                      - "/bin/sh"
+                      - "-c"
+                      - "mkdir /postgres-ssl && cp -Lr /postgres-ssl-client/* /postgres-ssl/ &&  chown root /postgres-ssl/* && chmod 600 /postgres-ssl/*;"
+          volumes:
+            - name: postgres-ssl-client
+              secret:
+                secretName: postgres-ssl-client
+          restartPolicy: Never
+      backoffLimit: 1
 ```
 
 - Images are tagged by the major PostgreSQL version supported: `12`, `13`, `14`, `15` or `16`.
